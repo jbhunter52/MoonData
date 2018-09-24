@@ -20,65 +20,100 @@ namespace Moon
         public HashSet<DateTime> moonriseHash = new HashSet<DateTime>();
         public HashSet<DateTime> moonsetHash = new HashSet<DateTime>();
 
+
+
         public Form1()
         {
             InitializeComponent();
 
-            DateTime start = new DateTime(2018, 9, 1);
-            DateTime end = new DateTime(2018, 9, 28);
 
-            int totDays = end.Subtract(start).Days;
-            List<Task> tasks = new List<Task>();
-            for (int i = 0; i < totDays; i++)
-            {
-                DateTime day = start.AddDays(i);
-                var t = new Task(() => ProcessDay(day));
-                tasks.Add(t);
-            }
-
-            StartAndWaitAllThrottled(tasks, 6, 20000000);
-
-            DrawChart();
         }
 
         public void DrawChart()
         {
-            List<DateTime> sunrise = sunriseHash.ToList();
-            List<DateTime> sunset = sunsetHash.ToList();
-            List<DateTime> moonrise = moonriseHash.ToList();
-            List<DateTime> moonset = moonsetHash.ToList();
+            
+
+            List<DateTime> sunrise = SortAscending(sunriseHash.ToList());
+            List<DateTime> sunset = SortAscending(sunsetHash.ToList());
+            List<DateTime> moonrise = SortAscending(moonriseHash.ToList());
+            List<DateTime> moonset = SortAscending(moonsetHash.ToList());
 
             List<DateTime> moonover = new List<DateTime>();
             List<DateTime> moonunder = new List<DateTime>();
 
-            sunrise = SortAscending(sunrise);
-            sunset = SortAscending(sunset);
-            moonrise = SortAscending(moonrise);
-            moonset = SortAscending(moonset);
+            List<DateTime> allmoon = new List<DateTime>();
+            allmoon.AddRange(moonrise);
+            allmoon.AddRange(moonset);
 
-            chart1.ChartAreas.Clear();
+            allmoon = SortAscending(allmoon);
+
+            bool riseFirst = false;
+            bool setFirst = false;
+            if (moonrise.Contains(allmoon[0]))
+                riseFirst = true;
+            if (moonset.Contains(allmoon[0]))
+                setFirst = true;
+
+            for (int i = 1; i < allmoon.Count-1; i++ )
+            {
+
+                if (riseFirst)
+                {
+                    TimeSpan ts = allmoon[i] - allmoon[i - 1];
+                    double halfHours = ts.TotalHours / 2;
+                    moonover.Add(allmoon[i - 1].AddHours(halfHours));
+
+                    i++;
+
+                    ts = allmoon[i] - allmoon[i - 1];
+                    halfHours = ts.TotalHours / 2;
+                    moonunder.Add(allmoon[i - 1].AddHours(halfHours));
+                }
+
+                if (setFirst)
+                {
+                    TimeSpan ts = allmoon[i] - allmoon[i - 1];
+                    double halfHours = ts.TotalHours / 2;
+                    moonunder.Add(allmoon[i - 1].AddHours(halfHours));
+
+                    i++;
+
+                    ts = allmoon[i] - allmoon[i - 1];
+                    halfHours = ts.TotalHours / 2;
+                    moonover.Add(allmoon[i - 1].AddHours(halfHours));
+                }
+
+            }
+
             chart1.Series.Clear();
-            ChartArea area = new ChartArea("0");
+            ChartArea area = chart1.ChartAreas[0];
             area.AxisX.LabelStyle.Format = "MM/dd/yyyy";
             area.AxisX.LabelStyle.Angle = -90;
             area.AxisX.IntervalType = DateTimeIntervalType.Months;
-            chart1.ChartAreas.Add(area);
+            //chart1.ChartAreas.Add(area);
 
-            chart1.Series.Add(GetSeries(sunrise, "Sunrise", Color.Orange));
-            chart1.Series.Add(GetSeries(sunset, "Sunset", Color.DarkOrange));
-            chart1.Series.Add(GetSeries(moonrise, "Moonrise", Color.Blue));
-            chart1.Series.Add(GetSeries(moonset, "Moonset", Color.LightBlue));
+            chart1.Series.Add(GetSeries(sunrise, "Sunrise", Color.Orange, true));
+            chart1.Series.Add(GetSeries(sunset, "Sunset", Color.DarkOrange, true));
+            //chart1.Series.Add(GetSeries(moonrise, "Moonrise", Color.Blue, true));
+            //chart1.Series.Add(GetSeries(moonset, "Moonset", Color.LightBlue, true));
+            chart1.Series.Add(GetSeries(moonover, "MoonOverHead", Color.Green, false));
+            chart1.Series.Add(GetSeries(moonunder, "MoonUnderFoot", Color.LightGreen, false));
 
 
         }
 
-        public Series GetSeries(List<DateTime> data, string name, Color col)
+        public Series GetSeries(List<DateTime> data, string name, Color col, bool solid)
         {
             Series s = new Series(name);
             s.ChartType = SeriesChartType.Line;
             s.Color = col;
-            s.ChartArea = "0";
+            s.ChartArea = "ChartArea1";
+            s.BorderWidth = 3;
             s.XValueType = ChartValueType.DateTime;
+            if (solid)
+                s.BorderDashStyle = ChartDashStyle.Solid;
+            else
+                s.BorderDashStyle = ChartDashStyle.Dash;
 
             for (int i = 0; i < data.Count; i++)
             {
@@ -125,11 +160,13 @@ namespace Moon
             {
                 if (type.phen.Equals("R"))
                 {
-                    moonriseHash.Add(String2DateTime(day, type.time));
+                    lock (moonriseHash)
+                        moonriseHash.Add(Convert2DateTime(day, type.time));
                 }
                 if (type.phen.Equals("S"))
                 {
-                    moonsetHash.Add(String2DateTime(day, type.time));
+                    lock (moonsetHash)
+                        moonsetHash.Add(Convert2DateTime(day, type.time));
                 }
             }
 
@@ -138,11 +175,13 @@ namespace Moon
             {
                 if (type.phen.Equals("R"))
                 {
-                    sunriseHash.Add(String2DateTime(day, type.time));
+                    lock (sunriseHash)
+                        sunriseHash.Add(Convert2DateTime(day, type.time));
                 }
                 if (type.phen.Equals("S"))
                 {
-                    sunsetHash.Add(String2DateTime(day, type.time));
+                    lock (sunsetHash)
+                        sunsetHash.Add(Convert2DateTime(day, type.time));
                 }
             }
         }
@@ -175,6 +214,16 @@ namespace Moon
             }
         }
 
+        public static DateTime Convert2DateTime(DateTime day, string time)
+        {
+            
+            string s = day.ToShortDateString() + " " + time;
+            s = s.Replace("a.m.", "AM");
+            s = s.Replace("p.m.", "PM");
+            s = s.Replace(" DT", "");
+            s = s.Replace(" ST", "");
+            return Convert.ToDateTime(s);
+        }
 
         public static DateTime String2DateTime(DateTime day, string time)
         {
@@ -185,20 +234,46 @@ namespace Moon
             int h = Int16.Parse(hm[0]);
             int m = Int16.Parse(hm[1]);
 
+            DateTime dt;
             if (ti[1].StartsWith("a"))
             {
                 //am
-                return new DateTime(day.Year, day.Month, day.Day, h, m, 0);
+                dt = new DateTime(day.Year, day.Month, day.Day, h, m, 0);
             }
             else
             {
-                return new DateTime(day.Year, day.Month, day.Day, h+12, m, 0);//pm
+                dt = new DateTime(day.Year, day.Month, day.Day, h,m,0);//pm
+                if (h<12)
+                    dt = dt.AddHours(12);
             }
+
+            Console.WriteLine(dt.ToString() + "------" + day.ToShortDateString() + "," + time);
+            return dt;
         }
         public static List<DateTime> SortAscending(List<DateTime> list)
         {
             list.Sort((a, b) => a.CompareTo(b));
             return list;
         }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            DateTime start = new DateTime(2018, 9, 21);
+            DateTime end = new DateTime(2018, 11, 1);
+
+            int totDays = end.Subtract(start).Days;
+            List<Task> tasks = new List<Task>();
+            for (int i = 0; i < totDays; i++)
+            {
+                DateTime day = start.AddDays(i);
+                var t = new Task(() => ProcessDay(day));
+                tasks.Add(t);
+            }
+
+            StartAndWaitAllThrottled(tasks, 6, 20000000);
+
+            DrawChart();
+        }
+
     }
 }
