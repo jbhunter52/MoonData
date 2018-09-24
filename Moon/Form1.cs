@@ -87,9 +87,7 @@ namespace Moon
 
             chart1.Series.Clear();
             ChartArea area = chart1.ChartAreas[0];
-            area.AxisX.LabelStyle.Format = "MM/dd/yyyy";
-            area.AxisX.LabelStyle.Angle = -90;
-            area.AxisX.IntervalType = DateTimeIntervalType.Months;
+            area.AxisX.LabelStyle.Format = "MM/dd";
             //chart1.ChartAreas.Add(area);
 
             chart1.Series.Add(GetSeries(sunrise, "Sunrise", Color.Orange, true));
@@ -258,8 +256,8 @@ namespace Moon
 
         private void button1_Click(object sender, EventArgs e)
         {
-            DateTime start = new DateTime(2018, 9, 21);
-            DateTime end = new DateTime(2018, 11, 1);
+            DateTime start = dateTimePicker1.Value.Date;
+            DateTime end = dateTimePicker2.Value.Date;
 
             int totDays = end.Subtract(start).Days;
             List<Task> tasks = new List<Task>();
