@@ -25,7 +25,8 @@ namespace Moon
         public Form1()
         {
             InitializeComponent();
-
+            chart1.Series.Clear();
+            dateTimePicker2.Value = dateTimePicker1.Value.AddMonths(1);
 
         }
 
@@ -97,6 +98,8 @@ namespace Moon
             chart1.Series.Add(GetSeries(moonover, "MoonOverHead", Color.Green, false));
             chart1.Series.Add(GetSeries(moonunder, "MoonUnderFoot", Color.LightGreen, false));
 
+            chart1.DataManipulator.InsertEmptyPoints(1, IntervalType.Days, "MoonOverHead");
+            chart1.DataManipulator.InsertEmptyPoints(1, IntervalType.Days, "MoonUnderFoot");
 
         }
 
@@ -113,13 +116,23 @@ namespace Moon
             else
                 s.BorderDashStyle = ChartDashStyle.Dash;
 
+            float prevHour = 12;
             for (int i = 0; i < data.Count; i++)
             {
                 DateTime date = data[i];
                 DateTime xDate = date.Date;
                 float hour = (float)date.Hour + (float)date.Minute / 60 + (float)date.Second / 60 / 60;
+                if (prevHour > 13)
+                {
+                    DateTime halfday = xDate.Subtract(new TimeSpan(12, 0, 0));
+                    //s.Points.AddXY(halfday, float.NaN);
+                    //s.Points[s.Points.Count - 1].IsEmpty = true;
+                }
                 s.Points.AddXY(xDate, hour);
+                s.Points[s.Points.Count - 1].ToolTip = s.Name + "\n" + date.ToString();
             }
+
+            //s.ToolTip = s.Name + "\n" + "#VALX#" + "\n" + "#VALY{mm/dd}";
             return s;
         }
         public void ProcessDay(DateTime dt)
@@ -271,6 +284,28 @@ namespace Moon
             StartAndWaitAllThrottled(tasks, 6, 20000000);
 
             DrawChart();
+        }
+
+        Point? prevPosition = null;
+        ToolTip tooltip = new ToolTip();
+        private void chart1_MouseMove(object sender, MouseEventArgs e)
+        {
+            var pos = e.Location;
+            if (prevPosition.HasValue && pos == prevPosition.Value)
+                return;
+            tooltip.RemoveAll();
+            prevPosition = pos;
+            var results = chart1.HitTest(pos.X, pos.Y, false, ChartElementType.DataPoint); // set ChartElementType.PlottingArea for full area, not only DataPoints
+            foreach (var result in results)
+            {
+                if (result.ChartElementType == ChartElementType.DataPoint) // set ChartElementType.PlottingArea for full area, not only DataPoints
+                {
+                    DataPoint dp = (DataPoint)result.Object;
+                    //var yVal = result.ChartArea.AxisY.PixelPositionToValue(pos.Y);
+                    //string mess = xVal.ToString() + "\n" + yVal.ToString();
+                    tooltip.Show(dp.ToolTip, chart1, pos.X, pos.Y - 15);
+                }
+            }
         }
 
     }
